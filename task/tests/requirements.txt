@@ -1,0 +1,5 @@
+# Verifier dependencies — must match exactly what is baked into
+# task/environment/Dockerfile so that test.sh uses only pre-installed tools.
+# Do NOT install these at verify time (pip install in test.sh is rejected).
+pytest==8.4.1
+pytest-json-ctrf==0.3.5
