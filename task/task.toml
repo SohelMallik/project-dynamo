@@ -1,38 +1,48 @@
-artifacts = []  # paths the verifier reads from the agent (e.g. ["/app/output.json"]) — must be above the first [section]
+artifacts = ["/app/rdf.csv", "/app/results.json"]
 
 [task]
-name = "dynamo/your-task-name"  # required format: org/name (Harbor needs the slash); name part lowercase kebab-case, <=3 words
-description = ""                 # one-line summary of the task
+name = "dynamo/argon-rdf-coordination"
+description = "Compute the radial distribution function and first coordination number for liquid argon from a 100-frame MD trajectory using minimum-image PBC."
 
 [metadata]
-# --- Pre-seeded for you when this repo was created — DO NOT EDIT ---
-category = "Scientific Computing and Domain Science"                      # diversity category, assigned to your task by the Dynamo team
-subcategory = "Chemistry and materials workflows"                   # diversity subcategory, assigned by the Dynamo team
-# --- Fixed for this dataset — LEAVE AS-IS ---
-model_tested = "Opus-4.8"           # difficulty-benchmarking model (do not change)
-agent_tested = "Terminus-2"        # difficulty-benchmarking agent (do not change)
-# --- You fill these in ---
-# task_objective / artifact_type: pick from .dynamo/diversity-taxonomy.toml (lowercase snake_case).
-task_objective = []                # e.g. ["implement", "debug"]
-artifact_type = []                 # e.g. ["codebase", "configuration_file"]
-expert_time_estimate_hours = 0     # best-case hours for a focused domain expert with the intended insight
-difficulty_explanation = ""        # why this task is hard for agents and humans
-solution_explanation = ""          # high-level approach and key insights
-verification_explanation = ""      # how the tests verify correctness
+category = "Scientific Computing and Domain Science"
+subcategory = "Chemistry and materials workflows"
+model_tested = "Opus-4.8"
+agent_tested = "Terminus-2"
+task_objective = ["analyze", "implement"]
+artifact_type = ["dataset_or_tabular_file", "generated_output_artifact"]
+expert_time_estimate_hours = 1.5
+
+difficulty_explanation = """
+This task requires a computational chemist or physicist to correctly implement the radial distribution function (RDF) g(r) for a periodic molecular system — a fundamental but non-trivial quantity in statistical mechanics. The key challenges are: (1) correctly applying minimum-image periodic boundary conditions (PBC) when computing pair distances, which requires knowledge of how to fold distances into the primary cell; (2) correctly normalising the pair-distance histogram by the ideal-gas shell volume density to obtain g(r), which demands understanding of the pair density normalization formulation used in liquid-state theory; (3) correctly identifying the first minimum of g(r) (which is the first-shell cutoff) from noisy trajectory-averaged data; and (4) computing the first coordination number by integrating 4π ρ g(r) r² dr with the trapezoidal rule up to that cutoff. The data is a synthetic but physically realistic liquid-Ar NVT Monte Carlo trajectory (108 atoms, rho*=0.844, T*=0.85 — a well-known liquid state point). The trajectory is custom-generated and not available online. The task is realistic: RDF analysis and coordination number extraction are routine tasks in materials simulation labs (molecular dynamics, Monte Carlo, DFT-MD), but require correct understanding of PBC, proper normalization conventions (N_pairs/L³ per frame), and robust peak/minimum detection. An undergraduate unfamiliar with statistical mechanics and periodic boundary conditions would struggle significantly."""
+
+solution_explanation = """
+The solution reads the 100-frame multi-frame XYZ trajectory, extracting the box length L from each frame's comment line. For each frame, it computes all N*(N-1)/2 distinct atom-pair distances using minimum-image PBC: dr_ij = r_i - r_j - round(dr_ij / L) * L componentwise. These distances are histogrammed into 160 bins of width 0.05 Å from 0 to 8 Å. The histogram is normalised to obtain g(r) by dividing each bin by the ideal-gas expected count: n_ideal = N_pairs * (4π r² dr) / L³, accumulated over all frames. The first peak of g(r) is found as the global argmax. The first minimum after the peak (for r > 2.5 Å) is found by scanning for the first local minimum. The coordination number is n₁ = 4π ρ ∫₀^{r_min} g(r) r² dr using numpy.trapz, where ρ = N/L³ averaged over frames. Outputs are /app/rdf.csv (header r,gr, 160 rows) and /app/results.json with first_peak_r, first_peak_gr, first_min_r, coordination_number (rounded to 2 decimal places)."""
+
+verification_explanation = """
+The verifier (test_outputs.py) runs 10 pytest tests:
+1. test_rdf_csv_exists / test_results_json_exists: file presence checks.
+2. test_rdf_csv_format: header is 'r,gr', exactly 160 rows, first bin centre 0.025 Å, last 7.975 Å.
+3. test_rdf_physical_properties: physical sanity — g(r)<0.05 for r<2.0 Å (hard core), g(r) mean ∈ (0.6, 1.4) for r>7 Å (asymptotic limit), and peak g(r)>1.5 (liquid structure).
+4. test_results_json_keys: all four keys present.
+5. test_first_peak_position: first_peak_r within ±0.10 Å of reference 3.675 Å. Tolerance = ±2 bins; chosen because the oracle gives 3.675 Å and any correct implementation using 0.05 Å bins will hit the same or adjacent bin.
+6. test_first_peak_height: first_peak_gr within ±0.40 of reference 2.88. The tolerance covers realistic variation in normalization (e.g., slight differences in how N_pairs/L³ is accumulated across frames).
+7. test_first_minimum_position: first_min_r within ±0.15 Å of reference 4.675 Å. Tolerance = ±3 bins; the minimum is shallow and may land in adjacent bins.
+8. test_coordination_number: coordination_number within ±1.5 of reference 10.21. Tolerance is generous to accommodate different integration cutoffs (first minimum ±3 bins propagates roughly ±1 in coordination number) and different trapezoidal schemes.
+9. test_coordination_number_rounded: coordination_number is rounded to 2 decimal places as specified.
+Tolerances were validated against the oracle solution and cross-checked against expected physical values for liquid Ar at rho*=0.844, T*=0.85 from the literature (~10-12 nearest neighbours, first peak near 3.68 Å)."""
 
 [verifier]
-timeout_sec = 120.0                # increase based on your test suite's runtime demands
-# Canonical TB2: the verifier runs in the environment image (no separate tests/Dockerfile).
-# Harbor overlays tests/ at verify time; leave environment_mode unset for this shared model.
+timeout_sec = 60.0
 
 [agent]
-timeout_sec = 120.0                # raise for hard tasks — agents may run for many minutes or hours
+timeout_sec = 900.0
 
 [environment]
-build_timeout_sec = 600.0          # max seconds for the Docker build
-cpus = 1                           # increase for parallel/compute-heavy workloads
-memory_mb = 2048                   # increase for large datasets or in-memory processing
-storage_mb = 10240                 # increase for tasks with large files or build artifacts
-gpus = 0                           # max 1, expect H100
-allow_internet = true              # open internet is available to the agent
-mcp_servers = []                   # optional MCP servers to expose to the agent
+build_timeout_sec = 600.0
+cpus = 2
+memory_mb = 2048
+storage_mb = 10240
+gpus = 0
+allow_internet = true
+mcp_servers = []

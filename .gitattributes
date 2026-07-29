@@ -1,0 +1,19 @@
+# Force LF line endings for shell scripts so they run correctly inside Linux
+# containers regardless of the host OS (Windows CRLF vs Unix LF).
+* text=auto
+
+# Shell scripts — always LF
+*.sh text eol=lf
+
+# Python — LF
+*.py text eol=lf
+
+# TOML / Markdown / text — LF
+*.toml text eol=lf
+*.md   text eol=lf
+*.csv  text eol=lf
+*.json text eol=lf
+*.txt  text eol=lf
+
+# XYZ trajectory — treat as binary to preserve exact byte content
+*.xyz  binary
