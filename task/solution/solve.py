@@ -170,9 +170,9 @@ def main():
     print(f"  First coordination number n1 = {n1:.4f} -> {round(n1, 2)}")
 
     results = {
-        "first_peak_r":       float(bin_centres[peak_idx]),
-        "first_peak_gr":      float(gr[peak_idx]),
-        "first_min_r":        float(bin_centres[min_idx]),
+        "first_peak_r":        round(float(bin_centres[peak_idx]), 4),
+        "first_peak_gr":       round(float(gr[peak_idx]), 4),
+        "first_min_r":         round(float(bin_centres[min_idx]), 4),
         "coordination_number": round(float(n1), 2),
     }
     with open(JSON_PATH, "w") as f:

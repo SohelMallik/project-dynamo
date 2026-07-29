@@ -20,16 +20,18 @@ solution_explanation = """
 The solution reads the 100-frame multi-frame XYZ trajectory, extracting the box length L from each frame's comment line. For each frame, it computes all N*(N-1)/2 distinct atom-pair distances using minimum-image PBC: dr_ij = r_i - r_j - round(dr_ij / L) * L componentwise. These distances are histogrammed into 160 bins of width 0.05 Å from 0 to 8 Å. The histogram is normalised to obtain g(r) by dividing each bin by the ideal-gas expected count: n_ideal = N_pairs * (4π r² dr) / L³, accumulated over all frames. The first peak of g(r) is found as the global argmax. The first minimum after the peak (for r > 2.5 Å) is found by scanning for the first local minimum. The coordination number is n₁ = 4π ρ ∫₀^{r_min} g(r) r² dr using numpy.trapz, where ρ = N/L³ averaged over frames. Outputs are /app/rdf.csv (header r,gr, 160 rows) and /app/results.json with first_peak_r, first_peak_gr, first_min_r, coordination_number (rounded to 2 decimal places)."""
 
 verification_explanation = """
-The verifier (test_outputs.py) runs 10 pytest tests:
+The verifier (test_outputs.py) runs 12 pytest tests:
 1. test_rdf_csv_exists / test_results_json_exists: file presence checks.
 2. test_rdf_csv_format: header is 'r,gr', exactly 160 rows, first bin centre 0.025 Å, last 7.975 Å.
-3. test_rdf_physical_properties: physical sanity — g(r)<0.05 for r<2.0 Å (hard core), g(r) mean ∈ (0.6, 1.4) for r>7 Å (asymptotic limit), and peak g(r)>1.5 (liquid structure).
-4. test_results_json_keys: all four keys present.
-5. test_first_peak_position: first_peak_r within ±0.10 Å of reference 3.675 Å. Tolerance = ±2 bins; chosen because the oracle gives 3.675 Å and any correct implementation using 0.05 Å bins will hit the same or adjacent bin.
-6. test_first_peak_height: first_peak_gr within ±0.40 of reference 2.88. The tolerance covers realistic variation in normalization (e.g., slight differences in how N_pairs/L³ is accumulated across frames).
-7. test_first_minimum_position: first_min_r within ±0.15 Å of reference 4.675 Å. Tolerance = ±3 bins; the minimum is shallow and may land in adjacent bins.
-8. test_coordination_number: coordination_number within ±1.5 of reference 10.21. Tolerance is generous to accommodate different integration cutoffs (first minimum ±3 bins propagates roughly ±1 in coordination number) and different trapezoidal schemes.
-9. test_coordination_number_rounded: coordination_number is rounded to 2 decimal places as specified.
+3. test_rdf_hard_core_exclusion: g(r)<0.05 for r<2.0 Å — Lennard-Jones hard core means no pair contacts below ~2.5 Å, so any bin below 2.0 Å must be essentially zero.
+4. test_rdf_asymptotic_limit: g(r) mean ∈ (0.6, 1.4) for r>7 Å — by definition g(r)→1 at large separations; the ±0.4 band accommodates statistical noise from 100 frames and 108 atoms.
+5. test_rdf_liquid_structure_peak: peak g(r)>1.5 — liquid Ar at this state point has a first-shell peak of ~2.5–3.2; any value above 1.5 confirms correct normalization and resolved liquid structure.
+6. test_results_json_keys: all four keys (first_peak_r, first_peak_gr, first_min_r, coordination_number) present.
+7. test_first_peak_position: first_peak_r within ±0.10 Å of reference 3.675 Å. Tolerance = ±2 bins; chosen because the oracle gives 3.675 Å and any correct implementation using 0.05 Å bins will hit the same or adjacent bin.
+8. test_first_peak_height: first_peak_gr within ±0.40 of reference 2.8838. The tolerance covers realistic variation in normalization (e.g., slight differences in how N_pairs/L³ is accumulated across frames).
+9. test_first_minimum_position: first_min_r within ±0.15 Å of reference 4.675 Å. Tolerance = ±3 bins; the minimum is shallow and may land in adjacent bins.
+10. test_coordination_number: coordination_number within ±1.5 of reference 10.21. Tolerance is generous to accommodate different integration cutoffs (first minimum ±3 bins propagates roughly ±1 in coordination number) and different trapezoidal schemes.
+11. test_coordination_number_rounded: coordination_number is rounded to 2 decimal places as specified.
 Tolerances were validated against the oracle solution and cross-checked against expected physical values for liquid Ar at rho*=0.844, T*=0.85 from the literature (~10-12 nearest neighbours, first peak near 3.68 Å)."""
 
 [verifier]
