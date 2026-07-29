@@ -5,8 +5,8 @@ name = "dynamo/argon-rdf-coordination"
 description = "Compute the radial distribution function and first coordination number for liquid argon from a 100-frame MD trajectory using minimum-image PBC."
 
 [metadata]
-category = "Scientific Computing and Domain Science"
-subcategory = "Chemistry and materials workflows"
+category = "scientific_computing_and_domain_science"
+subcategory = "chemistry_and_materials_workflows"
 model_tested = "Opus-4.8"
 agent_tested = "Terminus-2"
 task_objective = ["analyze", "implement"]

@@ -15,7 +15,7 @@ def patched_verifier(rdf, jsn):
 print("--- ORACLE ---")
 r = patched_solve()
 print("  first_peak_r        :", r["first_peak_r"])
-print("  first_peak_gr       :", round(r["first_peak_gr"], 4))
+print("  first_peak_gr       :", r["first_peak_gr"])
 print("  first_min_r         :", r["first_min_r"])
 print("  coordination_number :", r["coordination_number"])
 
@@ -34,6 +34,7 @@ for t in tests:
     try:    getattr(v2,t)(); print("  PASS (wrong!)", t); np_ += 1
     except: print("  FAIL (correct)", t); nf += 1
 
-print("\nORACLE  %d/10 PASS  %s" % (op, "OK" if of==0 else "FAIL"))
-print("NOP     %d/10 FAIL  %s" % (nf, "OK" if np_==0 else "FAIL"))
+TOTAL = len(tests)
+print("\nORACLE  %d/%d PASS  %s" % (op, TOTAL, "OK" if of==0 else "FAIL"))
+print("NOP     %d/%d FAIL  %s" % (nf, TOTAL, "OK" if np_==0 else "FAIL"))
 sys.exit(0 if of==0 and np_==0 else 1)
