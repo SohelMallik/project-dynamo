@@ -62,12 +62,11 @@ def test_rdf_csv_format():
     )
 
 
-def test_rdf_physical_properties():
+def test_rdf_hard_core_exclusion():
     """
-    Verify that g(r) has physically correct properties:
-    - g(r) = 0 for very small r (hard-core exclusion, r < 2.5 Å)
-    - g(r) -> 1 asymptotically for large r (> 7 Å)
-    - First peak exists with g(r) > 1.5 (liquid structure)
+    Verify that g(r) = 0 for very small r (hard-core exclusion, r < 2.0 Å).
+    For liquid Ar with LJ sigma = 3.405 Å, no atom pairs exist at separations
+    smaller than ~2.5 Å, so g(r) must be essentially zero below 2.0 Å.
     """
     with open(RDF_PATH, "r") as f:
         reader = csv.reader(f)
@@ -76,20 +75,45 @@ def test_rdf_physical_properties():
     r_vals  = [float(row[0]) for row in rows]
     gr_vals = [float(row[1]) for row in rows]
 
-    # g(r) must be zero (or near-zero) at very short distances (r < 2.0 Å)
     short_range = [gr for r, gr in zip(r_vals, gr_vals) if r < 2.0]
     assert all(gr < 0.05 for gr in short_range), (
         "g(r) must be ~0 for r < 2.0 Å (hard-core exclusion)"
     )
 
-    # g(r) must approach 1 at large distances (7-8 Å)
+
+def test_rdf_asymptotic_limit():
+    """
+    Verify that g(r) approaches 1 at large distances (r > 7.0 Å).
+    By definition, g(r) → 1 as r → ∞ for a homogeneous fluid; at r > 7 Å
+    liquid Ar structure is essentially uncorrelated and g(r) should be close to 1.
+    """
+    with open(RDF_PATH, "r") as f:
+        reader = csv.reader(f)
+        rows = list(reader)[1:]  # skip header
+
+    r_vals  = [float(row[0]) for row in rows]
+    gr_vals = [float(row[1]) for row in rows]
+
     long_range = [gr for r, gr in zip(r_vals, gr_vals) if r > 7.0]
     avg_long = sum(long_range) / len(long_range)
     assert 0.6 < avg_long < 1.4, (
         f"g(r) should approach 1.0 for r > 7 Å, got mean = {avg_long:.3f}"
     )
 
-    # First peak must be clearly above 1
+
+def test_rdf_liquid_structure_peak():
+    """
+    Verify that g(r) has a clear first peak above 1.5, indicating liquid structure.
+    For liquid Ar at rho*=0.844, T*=0.85 the first peak is ~2.5–3.2; any value
+    above 1.5 confirms the distribution was correctly normalized and the liquid
+    shell structure is resolved.
+    """
+    with open(RDF_PATH, "r") as f:
+        reader = csv.reader(f)
+        rows = list(reader)[1:]  # skip header
+
+    gr_vals = [float(row[1]) for row in rows]
+
     peak_gr = max(gr_vals)
     assert peak_gr > 1.5, (
         f"First peak of g(r) should exceed 1.5 for liquid structure, got {peak_gr:.3f}"
