@@ -136,7 +136,7 @@ def coordination_number(r, gr, min_idx, rho):
     """
     r_int  = r[:min_idx + 1]
     gr_int = gr[:min_idx + 1]
-    integral = np.trapz(gr_int * r_int ** 2, r_int)
+    integral = np.trapezoid(gr_int * r_int ** 2, r_int)
     return 4.0 * np.pi * rho * integral
 
 
