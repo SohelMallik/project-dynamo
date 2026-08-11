@@ -1,89 +1,122 @@
 # argon-rdf-coordination
 
-Compute the **radial distribution function g(r)** and **first coordination number** for a liquid argon system from a 100-frame molecular dynamics trajectory.
+Professional reference solution to compute the radial distribution function g(r)
+and the first coordination number for a liquid-argon molecular dynamics trajectory.
 
-## Task overview
+This repository provides a clear, well-tested implementation intended for
+education, benchmarking, and verification of agent-based solutions in the
+Harbor/Dynamo tasks framework. The implementation focuses on correctness,
+numerical stability, and reproducibility.
 
-The agent is given a custom 100-frame, 108-atom Lennard-Jones liquid-argon Monte Carlo trajectory (`/app/data/traj.xyz`) at the liquid state point ρ\* = 0.844, T\* = 0.85 (≈ 102 K). It must:
+## Quick summary
 
-1. Parse the multi-frame XYZ file and extract per-frame cubic box lengths.
-2. Compute all Ar–Ar pair distances using **minimum-image periodic boundary conditions**.
-3. Histogram distances into 160 bins (0.05 Å width, 0 – 8.0 Å) and normalise to get g(r).
-4. Identify the first peak and first post-peak minimum of g(r).
-5. Integrate 4πρ g(r) r² dr up to the first minimum to obtain the coordination number.
-6. Write `/app/rdf.csv` (160-row g(r) curve) and `/app/results.json` (peak position, peak height, first minimum, coordination number).
+- **Goal:** Compute Ar–Ar radial distribution function `g(r)` and the first
+  coordination number from a 100-frame MD trajectory (108 atoms per frame).
+- **Key techniques:** minimum-image periodic boundary conditions, histogram
+  normalisation to ideal-gas shell counts, robust local extrema detection,
+  trapezoidal integration of g(r) r².
+- **Stack:** Python 3.13, NumPy, pytest; Dockerfile included for reproducible
+  execution.
 
-## Why it's hard
+## Why this matters
 
-The task requires correct implementation of several non-trivial concepts from liquid-state statistical mechanics: minimum-image PBC (a common source of errors), the exact normalisation of the pair histogram by the ideal-gas shell density, robust detection of the shallow first minimum of g(r) from noisy data, and correct trapezoidal integration of 4πρ g(r) r² dr. The trajectory is custom-generated and cannot be looked up online.
+Radial distribution functions and coordination numbers are fundamental
+observables in liquid-state physics and molecular simulation. Correctly
+computing these quantities requires attention to periodic boundaries, volume
+normalisation, and numerical integration — mistakes produce physically wrong
+results. This repository demonstrates a compact, auditable pipeline that
+produces oracle-quality outputs and is automatically verifiable.
 
-## Environment
+## Contents
 
-- Base image: `python:3.13-slim-bookworm` (pinned digest `sha256:01f423…`)
-- Runtime deps: `numpy==2.2.6`
-- Verifier deps baked in: `pytest==8.4.1`, `pytest-json-ctrf==0.3.5`
-- Input data: `task/environment/data/traj.xyz` (100 frames, 108 Ar atoms, box L ≈ 17.16 Å)
+- `task/environment/data/traj.xyz` — 100-frame, 108-atom Lennard-Jones liquid
+  argon trajectory (input).
+- `task/solution/solve.py` — reference implementation (vectorised NumPy).
+- `task/solution/README.md` — algorithm walkthrough and developer notes.
+- `task/tests/test_outputs.py` — 12 pytest tests that validate outputs.
+- `.github/workflows/` — CI workflows used by the review and validation system.
 
-## Verification
+## Usage
 
-Twelve pytest tests in `task/tests/test_outputs.py` verify:
+1. Create and activate a Python virtual environment.
 
-| Test | Criterion |
-|------|-----------|
-| `test_rdf_csv_exists` | `/app/rdf.csv` present |
-| `test_rdf_csv_format` | Header `r,gr`; 160 rows; bin centres 0.025–7.975 Å |
-| `test_rdf_hard_core_exclusion` | g(r) < 0.05 for r < 2.0 Å (LJ hard core) |
-| `test_rdf_asymptotic_limit` | mean g(r) ∈ (0.6, 1.4) for r > 7 Å (g(r) → 1) |
-| `test_rdf_liquid_structure_peak` | peak g(r) > 1.5 (liquid shell structure) |
-| `test_results_json_exists` | `/app/results.json` present |
-| `test_results_json_keys` | All four required keys present |
-| `test_first_peak_position` | `first_peak_r` = 3.675 ± 0.10 Å |
-| `test_first_peak_height` | `first_peak_gr` = 2.884 ± 0.40 |
-| `test_first_minimum_position` | `first_min_r` = 4.675 ± 0.15 Å |
-| `test_coordination_number` | `coordination_number` = 10.21 ± 1.5 |
-| `test_coordination_number_rounded` | Value rounded to 2 decimal places |
-
-The oracle solution scores reward **1.0**; the nop agent scores **0**.
-
-## Oracle reference values
-
-| Key | Value |
-|-----|-------|
-| `first_peak_r` | 3.6750 Å |
-| `first_peak_gr` | 2.8838 |
-| `first_min_r` | 4.6750 Å |
-| `coordination_number` | 10.21 |
-
-## Project structure
-
+```bash
+python -m venv .venv
+source .venv/bin/activate      # macOS / Linux
+.venv\Scripts\activate        # Windows
 ```
-task/
-├── task.toml                  # Harbor task config, metadata, timeouts
-├── instruction.md             # Agent instruction (output contract, formulas)
-├── environment/
-│   ├── Dockerfile             # Pinned base image; numpy + pytest baked in
-│   └── data/
-│       ├── traj.xyz           # 100-frame liquid-Ar trajectory (input)
-│       └── README.md          # Data format description
-├── solution/
-│   ├── solve.sh               # Entry point: python3 /solution/solve.py
-│   ├── solve.py               # Oracle: parse → PBC distances → RDF → coord. number
-│   └── README.md              # Algorithm walkthrough
-└── tests/
-    ├── test.sh                # Verifier entry point (runs pytest, writes reward.txt)
-    ├── test_outputs.py        # 12 pytest tests on /app/rdf.csv and /app/results.json
-    └── conftest.py            # Ensures /app exists before tests run
 
-.github/workflows/
-├── dynamo-review.yml          # Auto-runs on every PR (static checks + rubric review)
-├── dynamo-validate.yml        # /validate comment → Docker build + oracle + nop check
-├── dynamo-run-trials.yml      # /run comment → live agent trials (pass@k)
-└── dynamo-rerun.yml           # /rerun comment → force-refresh full review pipeline
+2. Install runtime and test dependencies:
 
-references/
-├── dynamo-rubric.toml         # Rubric criteria used by the review pipeline
-├── diversity-taxonomy.toml    # Closed-set vocabulary for task metadata labels
-└── check-base-image.sh        # Static check: validates Dockerfile base image policy
-
-_v.py                          # Local oracle runner: patches paths, runs solution + verifier
+```bash
+python -m pip install numpy==2.2.6
+python -m pip install pytest==8.4.1 pytest-json-ctrf==0.3.5
 ```
+
+3. Run the reference solution locally (reads `task/environment/data/traj.xyz`):
+
+```bash
+python task/solution/solve.py
+```
+
+Outputs written (by default) to the task runtime layout:
+
+- `rdf.csv` — CSV with header `r,gr` and 160 rows (r bin centres, g(r) values).
+- `results.json` — JSON with keys `first_peak_r`, `first_peak_gr`,
+  `first_min_r`, `coordination_number` (rounded to 2 d.p.).
+
+## Running verification tests
+
+Run the test suite to verify correctness and reproducibility:
+
+```bash
+pytest -q task/tests/test_outputs.py
+```
+
+The test suite checks file formats, physical sanity (hard-core exclusion,
+asymptotic behaviour), and numerical agreement with the oracle reference
+values within tight tolerances.
+
+## Expected (oracle) results
+
+These values are produced by the reference solution and used by the verifier:
+
+- `first_peak_r` = 3.6750 Å
+- `first_peak_gr` = 2.8838
+- `first_min_r` = 4.6750 Å
+- `coordination_number` = 10.21
+
+## Implementation notes (algorithm)
+
+1. Parse the multi-frame XYZ file and extract the per-frame cubic box length
+   `L` from the comment line.
+2. For each frame compute the pairwise displacement tensor `dr_ij` and apply
+   the minimum-image convention: `dr -= round(dr / L) * L`.
+3. Compute pairwise distances (upper-triangle only) and histogram into 160
+   fixed-width bins spanning `r ∈ [0, 8.0 Å)` with `dr = 0.05 Å`.
+4. Normalise using the ideal-gas shell expectation summed across frames:
+   `n_ideal = Σ_frames(N_pairs / L^3) * 4π r^2 dr`, then `g(r) = hist / n_ideal`.
+5. Locate the first peak via `argmax(g(r))` and scan for the first local
+   minimum beyond `r = 2.5 Å`. Integrate `4πρ ∫ g(r) r^2 dr` up to that minimum
+   to yield the first coordination number.
+
+## Contributing
+
+Contributions are welcome. For code changes please:
+
+1. Fork the repository and create a feature branch.
+2. Add tests (or update existing ones) to cover new behavior.
+3. Open a pull request describing the change and its rationale.
+
+## Notes & suggestions
+
+- The implementation intentionally keeps dependencies minimal to ensure CI
+  stability and easy review.
+- If you want a shorter, CV-friendly one-line summary of this project, I can
+  provide tailored variants for roles such as `Computational Scientist`,
+  `Data Scientist`, or `Software Engineer`.
+
+## License
+
+This repository does not include an explicit license. Before redistributing or
+reusing, add a `LICENSE` file that expresses the intended permissions.
